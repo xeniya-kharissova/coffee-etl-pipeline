@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from collections.abc import Iterator
 from collections import Counter, defaultdict
 from coffee_etl.decorators import measure_time, retry
-
+from pathlib import Path
 VALID_MENU = {"ESPRESSO", "AMERICANO", "CAPPUCCINO", "LATTE", "FLAT WHITE"}
 
 @dataclass
@@ -16,7 +16,7 @@ class Order:
     def order_total_cost(self):
         return self.price * self.count
     
-def extract_orders_from_csv(file_path: str) -> Iterator[dict]:
+def extract_orders_from_csv(file_path: Path ) -> Iterator[dict]:
     with open(file_path, mode = "r", encoding = "utf-8") as file:
         reader = csv.DictReader(file)
 
@@ -52,7 +52,7 @@ def validate_order(row : dict) -> tuple[Order | None, None | str]:
 
 @measure_time   
 @retry(retries=3, delay=0.5)
-def process_orders_pipeline(input_path : str, clean_path :str, error_path : str) -> dict:
+def process_orders_pipeline(input_path : Path, clean_path :Path, error_path :Path) -> dict:
     stats = {"total":0, "clean" : 0, "error" : 0, "revenue" : 0}
     drinks_sold = Counter()
     revenue_by_client = defaultdict(float)

@@ -2,5 +2,4 @@ __pycache__/
 *.py[cod]
 .venv/
 .env
-cleaned_orders.csv
-error.csv
+output/
