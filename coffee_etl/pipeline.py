@@ -2,11 +2,9 @@ import csv
 from dataclasses import dataclass
 from collections.abc import Iterator
 from collections import Counter, defaultdict
-import time 
-from functools import wraps
+from coffee_etl.decorators import measure_time, retry
 
 VALID_MENU = {"ESPRESSO", "AMERICANO", "CAPPUCCINO", "LATTE", "FLAT WHITE"}
-
 
 @dataclass
 class Order:
@@ -51,36 +49,7 @@ def validate_order(row : dict) -> tuple[Order | None, None | str]:
             return (None, "Amount of cups must be beyween 1 and 5")
         order = Order(item_name, client_name, price, count)
         return (order, None)
-   
-def measure_time(func):
-    @wraps(func)   
-    def wrapper(*args,**kwargs):
-        start = time.perf_counter()
-        try:
-            result = func(*args,**kwargs)
-            return result
-        finally:
-            elapsed = time.perf_counter() - start
-            print(f"[TIME] {func.__name__} выполнилась за {elapsed:.4f} сек.")
-        
-    return wrapper
 
-
-def retry(retries : int = 3, delay : float = 1):
-    def decorator(func):
-        @wraps(func)
-        def wrapper(*args, **kwargs):
-            for trial in range(retries):
-                try:
-                    result = func(*args, **kwargs)
-                    return result
-                except Exception as e:
-                    print(f"[UNEXPECTED ERROR] | [TRIAL] : {trial+1} | [REASON] : {e}")
-                    if trial+1 == retries : raise
-                    time.sleep(delay)
-        return wrapper
-    return decorator
-    
 @measure_time   
 @retry(retries=3, delay=0.5)
 def process_orders_pipeline(input_path : str, clean_path :str, error_path : str) -> dict:
@@ -111,22 +80,4 @@ def process_orders_pipeline(input_path : str, clean_path :str, error_path : str)
     stats["revenue_by_client"] = dict(revenue_by_client)
     stats["error_reasons"] = error_reasons.most_common()
     return stats
-
-
-
-if __name__ == "__main__":
-
-    input_file = "orders.csv"
-    clean_file = "cleaned_orders.csv"
-    error_file = "error.csv"
-
-    print("=" * 60)
-    print("СТАРТ ОБРАБОТКИ ФАЙЛА ЗАКАЗОВ (DictReader)")
-    print("=" * 60)
-    print(process_orders_pipeline(input_file, clean_file, error_file))
-    print("Имя функции:", process_orders_pipeline.__name__)
-
-
-
-
 
