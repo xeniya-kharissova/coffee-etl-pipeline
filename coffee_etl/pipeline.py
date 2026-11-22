@@ -4,6 +4,11 @@ from collections.abc import Iterator
 from collections import Counter, defaultdict
 from coffee_etl.decorators import measure_time, retry
 from pathlib import Path
+import json 
+import logging
+
+logger = logging.getLogger(__name__)
+
 VALID_MENU = {"ESPRESSO", "AMERICANO", "CAPPUCCINO", "LATTE", "FLAT WHITE"}
 
 @dataclass
@@ -15,7 +20,16 @@ class Order:
 
     def order_total_cost(self):
         return self.price * self.count
-    
+def load_config(config_path : Path) -> dict:
+    try:
+        with open(config_path, mode="r", encoding="utf-8") as file:
+            data = json.load(file)
+            logger.info(f"VALID DATA SUCCESSFULLY LOADED FROM {config_path}")
+            return data        
+    except Exception as e:
+        logger.error(f"FAILED TO LOAD VALID MENU. ERROR REASON: {e}")    
+        raise
+
 def extract_orders_from_csv(file_path: Path ) -> Iterator[dict]:
     with open(file_path, mode = "r", encoding = "utf-8") as file:
         reader = csv.DictReader(file)
@@ -25,15 +39,15 @@ def extract_orders_from_csv(file_path: Path ) -> Iterator[dict]:
                 continue
             yield row
 
-def validate_order(row : dict) -> tuple[Order | None, None | str]:
+def validate_order(row : dict, config : dict) -> tuple[Order | None, None | str]:
         item_name = str(row.get("item_name") or "").strip().upper()
         if not item_name:
             return (None, "Item name is missing")
-        if item_name not in VALID_MENU:
+        if item_name not in config["menu"]:
             return (None, "Item is not in menu")
         client_name = str(row.get("client_name") or "").strip().upper()
         if not client_name:
-            return(None, "Cleint name is missing")
+            return(None, "Client name is missing")
         try:
             price = float(row.get("price", 0))
         except (TypeError, ValueError):
@@ -45,14 +59,14 @@ def validate_order(row : dict) -> tuple[Order | None, None | str]:
             count = int(row.get("count", 0))
         except (TypeError, ValueError):
             return (None, "Amount of cups must be integer")
-        if count < 1 or count>5:
-            return (None, "Amount of cups must be beyween 1 and 5")
+        if count < config["min_cups"] or count>config["max_cups"]:
+            return (None, f"Amount of cups must be between {config['min_cups']} and {config['max_cups']}")
         order = Order(item_name, client_name, price, count)
         return (order, None)
 
 @measure_time   
 @retry(retries=3, delay=0.5)
-def process_orders_pipeline(input_path : Path, clean_path :Path, error_path :Path) -> dict:
+def process_orders_pipeline(input_path : Path, clean_path :Path, error_path :Path, config : dict) -> dict:
     stats = {"total":0, "clean" : 0, "error" : 0, "revenue" : 0}
     drinks_sold = Counter()
     revenue_by_client = defaultdict(float)
@@ -64,7 +78,7 @@ def process_orders_pipeline(input_path : Path, clean_path :Path, error_path :Pat
         e_writer.writeheader()
         for raw_row in extract_orders_from_csv(input_path):
             stats["total"]+=1
-            order, reason = validate_order(raw_row)
+            order, reason = validate_order(raw_row, config)
             if order:
                 stats["clean"]+=1
                 drinks_sold[order.item_name]+=order.count
@@ -80,4 +94,12 @@ def process_orders_pipeline(input_path : Path, clean_path :Path, error_path :Pat
     stats["revenue_by_client"] = dict(revenue_by_client)
     stats["error_reasons"] = error_reasons.most_common()
     return stats
+
+def save_report_to_json(stats : dict, report_path : Path) -> None :
+    try:
+        with open(report_path, mode = "w", encoding="utf-8") as file:
+            json.dump(stats, file, indent=4, ensure_ascii=False)
+            logger.info(f"REPORT IS SAVED SUCCESSFULLY TO {report_path}")
+    except Exception as e:
+        logger.error(f"FAILED TO SAVE REPORT. ERROR REASON: {e}")
 

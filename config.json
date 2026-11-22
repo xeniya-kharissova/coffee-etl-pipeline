@@ -1,0 +1,5 @@
+{
+    "menu": ["LATTE", "CAPPUCCINO", "FLAT WHITE", "AMERICANO", "ESPRESSO"],
+    "min_cups": 1,
+    "max_cups": 5
+}
