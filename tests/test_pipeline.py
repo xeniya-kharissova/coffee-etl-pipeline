@@ -1,17 +1,20 @@
+import pytest
+
 from coffee_etl.pipeline import (
-    validate_order,
     load_config,
     process_orders_pipeline,
+    validate_order,
 )
-import pytest
+
 
 @pytest.fixture
 def sample_config():
     return {
-    "menu" : ["LATTE", "CAPPUCCINO", "FLAT WHITE"],
-    "min_cups" : 1,
-    "max_cups" : 5,
-}
+        "menu": ["LATTE", "CAPPUCCINO", "FLAT WHITE"],
+        "min_cups": 1,
+        "max_cups": 5,
+    }
+
 
 def test_valid_order(sample_config):
     row = {
@@ -29,6 +32,7 @@ def test_valid_order(sample_config):
     assert order.client_name == "ANNA"
     assert order.order_total_cost() == 9.0
 
+
 def test_item_not_in_menu(sample_config):
     row = {
         "item_name": "tea",
@@ -41,6 +45,7 @@ def test_item_not_in_menu(sample_config):
     assert order is None
     assert reason == "Item is not in menu"
 
+
 def test_price_less_than_zero(sample_config):
     row = {
         "item_name": "  latte ",
@@ -52,16 +57,18 @@ def test_price_less_than_zero(sample_config):
     assert order is None
     assert reason == "Price must be > 0"
 
+
 def test_amount_is_not_between_min_or_max(sample_config):
     row = {
-            "item_name": "latte",
-            "client_name": "Anna",
-            "price": "3.0",
-            "count": 6,
-        }
+        "item_name": "latte",
+        "client_name": "Anna",
+        "price": "3.0",
+        "count": 6,
+    }
     order, reason = validate_order(row, sample_config)
     assert order is None
     assert reason == "Amount of cups must be between 1 and 5"
+
 
 def test_missing_client_name(sample_config):
     row = {
@@ -74,6 +81,7 @@ def test_missing_client_name(sample_config):
     assert order is None
     assert reason == "Client name is missing"
 
+
 def test_price_is_not_numerical(sample_config):
     row = {
         "item_name": "  latte ",
@@ -85,6 +93,7 @@ def test_price_is_not_numerical(sample_config):
     assert order is None
     assert reason == "Price must be either fraction or integer"
 
+
 def test_process_orders_pipeline(tmp_path, sample_config):
     input_path = tmp_path / "orders.csv"
     input_path.write_text(
@@ -93,16 +102,18 @@ def test_process_orders_pipeline(tmp_path, sample_config):
         "ESPRESSO,,3.00,2\n"
         "latte,  Alice  ,-4.00,1\n"
         "FLAT WHITE,Bob,5.00,10\n",
-        encoding="utf-8",)
+        encoding="utf-8",
+    )
     clean_path = tmp_path / "cleaned_orders.csv"
     error_path = tmp_path / "error.csv"
     stats = process_orders_pipeline(input_path, clean_path, error_path, sample_config)
     assert clean_path.exists()
     assert error_path.exists()
-    assert stats["total"]==4
-    assert stats["clean"]==1
-    assert stats["error"]==3
-    assert stats["revenue"]==4.50
+    assert stats["total"] == 4
+    assert stats["clean"] == 1
+    assert stats["error"] == 3
+    assert stats["revenue"] == 4.50
+
 
 def test_load_config(tmp_path):
     missing_path = tmp_path / "no_such_cofig.json"
